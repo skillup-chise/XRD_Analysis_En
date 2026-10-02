@@ -7,9 +7,11 @@ doublet.
 
 from __future__ import annotations
 
+import io
 import math
 import re
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -85,10 +87,42 @@ def parse_xrd_text(text: str, source_name: str = "uploaded file") -> tuple[np.nd
         if delimiter is None:
             delimiter, comma_decimal = _detect_delimiter(line)
         rows.append(_split_row(line, delimiter, comma_decimal))
+    return _arrays_from_rows(rows, source_name)
+
+
+def load_powder_pattern(data: bytes, source_name: str = "uploaded file") -> tuple[np.ndarray, np.ndarray]:
+    """Read a powder scan from text or from the first sheet of an Excel file.
+
+    ``.xlsx`` is read with openpyxl. Legacy ``.xls`` is rejected so the
+    installer does not need xlrd. Column rules match :func:`parse_xrd_text`.
+    """
+
+    suffix = Path(source_name).suffix.lower()
+    if suffix in {".xlsx", ".xls"}:
+        return parse_xrd_workbook(data, source_name)
+    try:
+        text = data.decode("utf-8")
+    except UnicodeDecodeError:
+        text = data.decode("latin-1")
+    return parse_xrd_text(text, source_name)
+
+
+def parse_xrd_workbook(data: bytes, source_name: str = "uploaded file") -> tuple[np.ndarray, np.ndarray]:
+    """Read 2θ and intensity from the first sheet of an .xlsx workbook."""
+
+    if Path(source_name).suffix.lower() == ".xls":
+        raise ValueError(
+            f"{source_name} is a legacy Excel .xls workbook. "
+            "Save it as .xlsx or .csv and upload that file."
+        )
+    frame = _read_first_sheet(data, source_name)
+    return _arrays_from_rows(_rows_from_frame(frame), source_name)
+
+
+def _arrays_from_rows(rows: list[list[str]], source_name: str) -> tuple[np.ndarray, np.ndarray]:
     if len(rows) < 5:
         raise ValueError(
-            f"{source_name} does not contain enough numeric rows. "
-            "Use a text file with 2θ and intensity columns."
+            f"{source_name} does not contain enough numeric rows. {_column_hint(source_name)}"
         )
 
     header_map = _header_columns(rows[0])
@@ -135,6 +169,74 @@ def parse_xrd_text(text: str, source_name: str = "uploaded file") -> tuple[np.nd
             f"{source_name} needs at least 10 points spanning 5° in 2θ."
         )
     return angles, counts
+
+
+def _column_hint(source_name: str) -> str:
+    if Path(source_name).suffix.lower() == ".xlsx":
+        return "Use the first sheet with 2θ and intensity columns."
+    return "Use a text file with 2θ and intensity columns."
+
+
+def _read_first_sheet(data: bytes, source_name: str) -> pd.DataFrame:
+    if not data:
+        raise ValueError(
+            f"Could not read the first sheet of {source_name}. "
+            "The file is empty or is not a valid .xlsx workbook."
+        )
+    try:
+        frame = pd.read_excel(
+            io.BytesIO(data),
+            sheet_name=0,
+            header=None,
+            engine="openpyxl",
+        )
+    except Exception as exc:
+        raise ValueError(
+            f"Could not read the first sheet of {source_name}. "
+            "Check that the file is a valid .xlsx workbook."
+        ) from exc
+    if not isinstance(frame, pd.DataFrame) or frame.empty or frame.dropna(how="all").empty:
+        raise ValueError(
+            f"Could not read the first sheet of {source_name}. "
+            "The sheet is empty. Put 2θ and intensity in the first sheet."
+        )
+    return frame
+
+
+def _rows_from_frame(frame: pd.DataFrame) -> list[list[str]]:
+    rows: list[list[str]] = []
+    for record in frame.itertuples(index=False, name=None):
+        cells = [_cell_text(value) for value in record]
+        if any(cells):
+            rows.append(cells)
+    return rows
+
+
+def _cell_text(value: object) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, bool):
+        return ""
+    if hasattr(value, "item") and not isinstance(value, (bytes, bytearray)):
+        try:
+            value = value.item()
+        except (ValueError, AttributeError):
+            pass
+    try:
+        missing = pd.isna(value)
+    except (TypeError, ValueError):
+        missing = False
+    if missing is True or missing is pd.NA:
+        return ""
+    if isinstance(value, bool):
+        return ""
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return ""
+        return format(value, ".12g")
+    return str(value).strip()
 
 
 def process_scan(

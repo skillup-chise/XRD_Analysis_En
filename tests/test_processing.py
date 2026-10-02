@@ -11,6 +11,7 @@ from plotting import build_pattern_figure, build_score_figure
 from xrd_processing import (
     build_ti2aln_example,
     claimed_peak_indices,
+    load_powder_pattern,
     parse_xrd_text,
     process_scan,
     score_phase,
@@ -65,6 +66,41 @@ def test_parse_commented_xy_and_csv_header():
     angles, intensity = parse_xrd_text(european, "scan.txt")
     assert angles[0] == pytest.approx(5)
     assert intensity[-1] == pytest.approx(114)
+
+
+def test_parse_xlsx_and_reject_unreadable_workbooks(tmp_path):
+    import pandas as pd
+
+    headed = pd.DataFrame(
+        {
+            "two_theta": np.linspace(5, 30, 20),
+            "intensity": np.arange(20, dtype=float) + 50,
+        }
+    )
+    path = tmp_path / "scan.xlsx"
+    headed.to_excel(path, index=False, engine="openpyxl")
+    angles, intensity = load_powder_pattern(path.read_bytes(), path.name)
+    assert angles[0] == pytest.approx(5)
+    assert intensity[0] == pytest.approx(50)
+    assert angles[-1] == pytest.approx(30)
+
+    bare = pd.DataFrame(
+        {
+            0: np.linspace(10, 40, 15),
+            1: np.linspace(100, 114, 15),
+        }
+    )
+    bare_path = tmp_path / "bare.xlsx"
+    bare.to_excel(bare_path, index=False, header=False, engine="openpyxl")
+    angles, intensity = load_powder_pattern(bare_path.read_bytes(), "bare.xlsx")
+    assert angles[0] == pytest.approx(10)
+    assert intensity[-1] == pytest.approx(114)
+
+    with pytest.raises(ValueError, match=r"Save it as \.xlsx or \.csv"):
+        load_powder_pattern(b"not-an-xls", "legacy.xls")
+
+    with pytest.raises(ValueError, match="Could not read the first sheet"):
+        load_powder_pattern(b"this is not a workbook", "broken.xlsx")
 
 
 def test_snip_preserves_a_flat_baseline_and_removes_a_peak():

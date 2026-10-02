@@ -1,5 +1,16 @@
 __pycache__/
+*.py[cod]
 .pytest_cache/
 .venv/
-*.pyc
+venv/
+env/
+.DS_Store
 .streamlit/secrets.toml
+.idea/
+.vscode/
+*.egg-info/
+dist/
+build/
+data/raw/
+outputs/
+tmp/

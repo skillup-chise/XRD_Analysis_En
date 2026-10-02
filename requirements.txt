@@ -9,6 +9,9 @@
 streamlit>=1.64,<1.65
 plotly>=5.22,<7.2
 
+# Pure-Python reader for .xlsx uploads. Legacy .xls is rejected in the app.
+openpyxl>=3.1.2,<4
+
 # NumPy, SciPy, and pandas drop a Python minor version in each new major
 # release. The markers keep each interpreter on a release that still ships
 # a binary wheel, so the installer does not compile Fortran or C++.
