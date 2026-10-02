@@ -22,6 +22,17 @@ To replace a broken environment, deactivate it, delete the `.venv` directory, an
 
 Open the local URL Streamlit prints. The sidebar selects the material, radiation, and peak settings. The main page shows the pattern, the screening scores, and the calculated line list.
 
+## Streamlit Cloud
+
+This repository is ready for Streamlit Community Cloud.
+
+- Main file: `app.py` at the repository root
+- Dependencies: `requirements.txt` at the repository root
+- No secrets, API keys, or environment variables
+- Python 3.10, 3.11, 3.12, 3.13, or 3.14
+
+In the app settings, set the main file path to `app.py`.
+
 To exercise the screen without a file, use **Load Ti2AlN example**. That scan is a synthetic Cu Kα1 pattern of Ti2AlN plus a TiN impurity. `examples/Ti2AlN.cif` is a matching cell for the CIF upload.
 
 ## Project layout
@@ -47,7 +58,11 @@ Internal z coordinates for the MAX phases are representative 211 values. Relativ
 
 ## Measured files
 
-Text, CSV, DAT, and XY files are accepted. The loader skips blank lines and comments that start with `#`, `!`, `%`, `*`, or `//`. It uses a header containing 2θ and intensity when one is present; otherwise it uses the first two numeric columns, with 2θ first. Comma, whitespace, tab, and semicolon separators are accepted. Semicolon files may use a comma as the decimal mark.
+Text, CSV, DAT, XY, and Excel `.xlsx` files are accepted. Excel uses the first sheet. Legacy `.xls` workbooks are rejected; save them as `.xlsx` or `.csv`. The loader skips blank lines and comments that start with `#`, `!`, `%`, `*`, or `//`. It uses a header containing 2θ and intensity when one is present; otherwise it uses the first two numeric columns, with 2θ first. Comma, whitespace, tab, and semicolon separators are accepted. Semicolon files may use a comma as the decimal mark.
+
+## Experiment notes
+
+The sidebar section **Experiment notes** records stirrer size (mm), rotation speed (rpm), flask size (mL), and a short note. After a scan is loaded, those values are shown with the selected material name. They are experiment notes only. They are not inputs to the crystallographic calculation and do not change peak positions, intensities, or the Consistent / Possible / Unlikely screening scores.
 
 ## How the screen works
 

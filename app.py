@@ -32,7 +32,7 @@ from xrd_processing import (
     build_ti2aln_example,
     claimed_peak_indices,
     example_xy_text,
-    parse_xrd_text,
+    load_powder_pattern,
     peaks_to_frame,
     process_scan,
     score_phase,
@@ -367,13 +367,93 @@ def _render_sidebar() -> None:
             "Other sites use the slider."
         )
 
+    _render_experiment_notes()
+
+
+def _render_experiment_notes() -> None:
+    """Record optional synthesis metadata that is not used in the calculation."""
+
+    st.sidebar.header("Experiment notes")
+    st.sidebar.caption(
+        "Optional notes for this scan. They are recorded with the results and are not "
+        "inputs to the crystallographic calculation. They do not change peak positions, "
+        "intensities, or screening scores."
+    )
+    st.sidebar.number_input(
+        "Stirrer size (mm)",
+        min_value=0.0,
+        max_value=1000.0,
+        step=0.1,
+        value=None,
+        placeholder="Optional",
+        key="note_stirrer_mm",
+        help="Experiment note only. Not used to calculate the pattern or the screening score.",
+    )
+    st.sidebar.number_input(
+        "Rotation speed (rpm)",
+        min_value=0.0,
+        max_value=20000.0,
+        step=1.0,
+        value=None,
+        placeholder="Optional",
+        key="note_rotation_rpm",
+        help="Experiment note only. Not used to calculate the pattern or the screening score.",
+    )
+    st.sidebar.number_input(
+        "Flask size (mL)",
+        min_value=0.0,
+        max_value=50000.0,
+        step=1.0,
+        value=None,
+        placeholder="Optional",
+        key="note_flask_ml",
+        help="Experiment note only. Not used to calculate the pattern or the screening score.",
+    )
+    st.sidebar.text_area(
+        "Short note",
+        key="note_text",
+        placeholder="Optional",
+        height=80,
+        help="Experiment note only. Not used to calculate the pattern or the screening score.",
+    )
+
+
+def _format_experiment_value(value: float | None, unit: str) -> str:
+    if value is None:
+        return "—"
+    number = float(value)
+    text = f"{number:.4f}".rstrip("0").rstrip(".")
+    return f"{text} {unit}"
+
+
+def _render_experiment_note_summary(material_name: str) -> None:
+    stirrer = st.session_state.get("note_stirrer_mm")
+    speed = st.session_state.get("note_rotation_rpm")
+    flask = st.session_state.get("note_flask_ml")
+    note = str(st.session_state.get("note_text") or "").strip()
+    st.subheader("Experiment notes")
+    st.caption(
+        f"Recorded for {material_name}. "
+        "Stirrer size, rotation speed, and flask size are experiment notes only. "
+        "They do not change peak positions, intensities, or screening scores."
+    )
+    columns = st.columns(3)
+    columns[0].metric("Stirrer size", _format_experiment_value(stirrer, "mm"))
+    columns[1].metric("Rotation speed", _format_experiment_value(speed, "rpm"))
+    columns[2].metric("Flask size", _format_experiment_value(flask, "mL"))
+    st.caption(f"Note: {note if note else '—'}")
+
 
 def _experimental_data(wavelength: float):
     st.subheader("Measured scan")
     upload = st.file_uploader(
         "Powder pattern",
-        type=["xy", "txt", "csv", "dat"],
-        help="Text with two columns, 2θ and intensity. Headers and comment lines are ignored.",
+        type=["csv", "txt", "dat", "xy", "xlsx", "xls"],
+        help=(
+            "Text, CSV, DAT, XY, or Excel .xlsx. The first sheet is used. "
+            "A header with 2θ and intensity is used when present; otherwise the first "
+            "two numeric columns are used. Legacy .xls files are not read; save them as .xlsx or .csv."
+        ),
     )
     action_col, note_col = st.columns([1, 2])
     with action_col:
@@ -405,11 +485,7 @@ def _experimental_data(wavelength: float):
         return None
 
     try:
-        text = upload.getvalue().decode("utf-8")
-    except UnicodeDecodeError:
-        text = upload.getvalue().decode("latin-1")
-    try:
-        angles, counts = parse_xrd_text(text, upload.name)
+        angles, counts = load_powder_pattern(upload.getvalue(), upload.name)
     except ValueError as exc:
         st.error(str(exc))
         return None
@@ -520,6 +596,8 @@ def main() -> None:
         )
 
     experiment = _experimental_data(wavelength)
+    if experiment is not None:
+        _render_experiment_note_summary(material_name)
     processed = None
     if experiment is not None:
         angles, counts, _source = experiment
@@ -886,6 +964,10 @@ intensity they explain. Residual peaks are measured peaks not already matched
 to the primary phase. If a phase's strongest calculated line is absent, its
 score is reduced. The labels Consistent, Possible, and Unlikely are bands on
 that score. They are not a quantitative phase analysis.
+
+**Experiment notes.** Stirrer size, rotation speed, flask size, and the short
+note are recorded with the scan. They are not inputs to the peak positions,
+intensities, or screening scores.
         """
     )
 
