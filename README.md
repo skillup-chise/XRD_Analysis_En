@@ -4,10 +4,21 @@ A Streamlit application for powder X-ray diffraction. It calculates reference li
 
 ## Run
 
+Use CPython 3.10, 3.11, 3.12, 3.13, or 3.14. NumPy, SciPy, pandas, and pyarrow publish binary wheels for those versions. Python 3.9 and 3.15 are outside that set, and an installer will try to compile the libraries instead of downloading a wheel.
+
+From the repository root:
+
 ```bash
-pip install -r requirements.txt
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install --only-binary=numpy,scipy,pandas,pyarrow,pillow -r requirements.txt
 streamlit run app.py
 ```
+
+On Windows, activate the environment with `.venv\Scripts\activate` before the `pip` commands. No environment variables are required. `scattering_factors.json` stays next to `crystallography.py`. Sample files live in `examples/` and are optional; the **Load Ti2AlN example** button does not read them.
+
+To replace a broken environment, deactivate it, delete the `.venv` directory, and run the commands above again.
 
 Open the local URL Streamlit prints. The sidebar selects the material, radiation, and peak settings. The main page shows the pattern, the screening scores, and the calculated line list.
 
